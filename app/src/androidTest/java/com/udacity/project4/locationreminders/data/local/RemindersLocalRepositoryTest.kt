@@ -42,15 +42,15 @@ class RemindersLocalRepositoryTest {
 
     @Test
     fun testRepo() = runBlockingTest {
-        var item = ReminderDTO("title", "description", "location", 0.0, 0.0)
+        val item = ReminderDTO("title", "description", "location", 0.0, 0.0)
 
 
         runBlocking {
             repository.saveReminder(item)
 
-            var result = repository.getReminder(item.id) as Result.Success
+            val result = repository.getReminder(item.id) as Result.Success
 
-            assertThat(false, `is`(false))
+            assertThat(result.data == null, `is`(false))
 
             assertThat(item.id, `is`(result.data.id))
             assertThat(item.description, `is`(result.data.description))
@@ -63,7 +63,7 @@ class RemindersLocalRepositoryTest {
 
             assertThat(repository.getReminder("Hamdy") is Result.Error, `is`(true))
 
-            var result1 = repository.getReminders() as Result.Success
+            val result1 = repository.getReminders() as Result.Success
             assertThat(result1.data.size, `is`(0))
 
         }

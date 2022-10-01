@@ -2,11 +2,14 @@ package com.udacity.project4.locationreminders.savereminder.selectreminderlocati
 
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -40,6 +43,12 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
     private lateinit var binding: FragmentSelectLocationBinding
     lateinit var map: GoogleMap
     private lateinit var pointOfInterest: PointOfInterest
+    private val REQUEST_LOCATION_PERMISSION = 1
+    private var marker: Marker? = null
+    private val fusedLocationProviderClient by lazy {
+        LocationServices.getFusedLocationProviderClient(requireActivity())
+    }
+    private val DEFAULT_ZOOM_LEVEL = 15f
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -57,9 +66,6 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
             childFragmentManager.findFragmentById(binding.map.id) as SupportMapFragment
         mapContainer.getMapAsync(this)
 
-        binding.save.setOnClickListener {
-            findNavController().popBackStack()
-        }
 
         onLocationSelected()
 
@@ -80,6 +86,75 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
         }
     }
 
+
+
+    override fun onMapReady(p0: GoogleMap?) {
+        map = p0!!
+
+        setPoiClick(map)
+        setOnMapClick(map)
+        setMapStyle(map)
+
+
+        if (isPermissionGranted()) {
+            enableMyLocation()
+        } else {
+            requestQPermission()
+        }
+    }
+
+
+    private fun setPoiClick(map: GoogleMap) {
+        map.setOnPoiClickListener { pointOfInterest ->
+            map.clear()
+
+            this.pointOfInterest = pointOfInterest
+             marker = map.addMarker(
+                MarkerOptions()
+                    .title(pointOfInterest.name)
+                    .position(pointOfInterest.latLng)
+            )
+            marker?.showInfoWindow()
+            map.animateCamera(CameraUpdateFactory.newLatLng(pointOfInterest.latLng))
+
+        }
+    }
+
+    private fun setOnMapClick(map: GoogleMap) {
+        map.setOnMapClickListener { latLng ->
+            map.clear()
+            val snippet = String.format(
+                Locale.getDefault(),
+                getString(R.string.lat_long_snippet),
+                latLng.latitude,
+                latLng.longitude
+            )
+            pointOfInterest = PointOfInterest(latLng, "", getString(R.string.dropped_pin))
+            val poi = pointOfInterest
+            marker= map.addMarker(
+                MarkerOptions()
+                    .position(poi.latLng)
+                    .title(poi.name)
+                    .snippet(snippet)
+            )
+            marker?.showInfoWindow()
+            map.animateCamera(CameraUpdateFactory.newLatLng(latLng))
+
+
+        }
+    }
+
+    private fun setMapStyle(map: GoogleMap) {
+        try {
+            map.setMapStyle(
+                MapStyleOptions.loadRawResourceStyle(
+                    requireActivity(),
+                    R.raw.map_style
+                )
+            )
+        } catch (e: Exception) {
+        }
+    }
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.map_options, menu)
@@ -105,110 +180,81 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
         else -> super.onOptionsItemSelected(item)
     }
 
-    override fun onMapReady(p0: GoogleMap?) {
-        map = p0!!
-
-        setPoiClick(map)
-        setOnMapClick(map)
-        setMapStyle(map)
 
 
-        if (PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION
-            )
-        ) {
-            map.isMyLocationEnabled = true
+    private fun showRationale() {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(requireActivity(),
+                Manifest.permission.ACCESS_FINE_LOCATION)) {
+            AlertDialog.Builder(requireActivity())
+                .setTitle("Location Permission")
+                .setMessage(R.string.permission_denied_explanation)
+                .setPositiveButton("OK") { _,_->
+                    requestQPermission()
+                }
+                .create()
+                .show()
+
         } else {
-            requestPermissions(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                1
-            )
+            requestQPermission()
         }
     }
 
-    private fun setMapStyle(map: GoogleMap) {
-        try {
-            map.setMapStyle(
-                MapStyleOptions.loadRawResourceStyle(
-                    requireActivity(),
-                    R.raw.map_style
-                )
-            )
-        } catch (e: Exception) {
-        }
+    @SuppressLint("MissingPermission")
+    private fun enableMyLocation() {
+        map.isMyLocationEnabled = true
+        //Log.d("MapsActivity", "getLastLocation Called")
+        fusedLocationProviderClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                location?.let {
+                    val userLocation = LatLng(location.latitude, location.longitude)
+                    map.moveCamera(
+                        CameraUpdateFactory.newLatLngZoom(
+                            userLocation,
+                            DEFAULT_ZOOM_LEVEL
+                        )
+                    )
+                    marker = map.addMarker(
+                        MarkerOptions().position(userLocation)
+                            .title("My location"))
+                    marker?.showInfoWindow()
+                }
+            }
     }
-
-    private fun setPoiClick(map: GoogleMap) {
-        map.setOnPoiClickListener { pointOfInterest ->
-            map.clear()
-
-            val marker = map.addMarker(
-                MarkerOptions()
-                    .title(pointOfInterest.name)
-                    .position(pointOfInterest.latLng)
-            )
-            marker.showInfoWindow()
-        }
-    }
-
-    private fun setOnMapClick(map: GoogleMap) {
-        map.setOnMapClickListener { latLng ->
-            map.clear()
-            val snippet = String.format(
-                Locale.getDefault(),
-                getString(R.string.lat_long_snippet),
-                latLng.latitude,
-                latLng.longitude
-            )
-            pointOfInterest = PointOfInterest(latLng, "", getString(R.string.dropped_pin))
-            val poi = pointOfInterest
-            map.addMarker(
-                MarkerOptions()
-                    .position(poi.latLng)
-                    .title(poi.name)
-                    .snippet(snippet)
-            )?.showInfoWindow()
-
-        }
-    }
-
     private fun isPermissionGranted(): Boolean {
         return ContextCompat.checkSelfPermission(
             requireActivity(),
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
     }
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-
-        if (requestCode == 1) {
-
-            if (grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
-            ) {
-                if (ActivityCompat.checkSelfPermission(
-                        requireContext(),
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                        requireContext(),
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    return
-                }
-                map.isMyLocationEnabled = true
-
-            } else {
-                binding.save.isEnabled = false
-                _viewModel.showSnackBarInt.value = R.string.location_required_error
-
-            }
+    private fun requestQPermission() {
+        if (ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) ==
+            PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(requireContext(),
+                Manifest.permission.ACCESS_COARSE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED) {
+            map.isMyLocationEnabled = true
+        } else {
+            this.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                REQUEST_LOCATION_PERMISSION)
         }
     }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (grantResults.isNotEmpty() && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+            enableMyLocation()
+        } else {
+            showRationale()
+        }
+    }
+
 
     override fun onResume() {
         super.onResume()

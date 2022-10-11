@@ -1,5 +1,6 @@
 package com.udacity.project4.locationreminders.reminderslist
 
+import android.os.Build
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,7 +20,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.koin.core.context.stopKoin
+import org.robolectric.annotation.Config
 
+@Config(sdk = [Build.VERSION_CODES.O_MR1])
 @RunWith(AndroidJUnit4::class)
 @ExperimentalCoroutinesApi
 class RemindersListViewModelTest {
@@ -121,6 +124,6 @@ class RemindersListViewModelTest {
         viewModel.loadReminders()
 
         // Assert showSnackbar value is Returning data is not found
-        assertEquals("Returning testing error!",viewModel.showSnackBar.getOrAwaitValue())
+        assertEquals("Tasks not found",viewModel.showSnackBar.getOrAwaitValue())
     }
 }
